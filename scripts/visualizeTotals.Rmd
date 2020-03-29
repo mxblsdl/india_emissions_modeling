@@ -1,0 +1,446 @@
+---
+title: "Visualize Emissions Scenarios"
+date: "December 13, 2019" # update with new emissions factors
+author: "Max Blasdel"
+---
+
+# Purpose
+Visualize and analyze the totals csv output from running scenarios
+
+```{r setup, message=FALSE}
+library(tidyverse)
+library(reshape2)
+library(zoo)
+library(magrittr)
+library(wesanderson)
+
+options(scipen = 20)
+# this sets the wd to the project directory
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+# Other funtions
+Below script does not end up getting used
+
+```{r}
+source("scripts/constraint_factors.R") # this is not used anymore in this analysis
+
+# capitalization function
+simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1,1)), substring(s, 2),
+        sep="", collapse=" ")
+}
+
+```
+
+# Totals data from scenarios
+
+Load data
+
+```{r}
+tots <- dir("output/tabular/emissions/fuel_shift", pattern = ".csv", full.names = T)
+
+csvs <- lapply(tots, function(x) {
+  return(read.csv(x, stringsAsFactors = F))
+})
+
+tots <- do.call(rbind, csvs)
+tots
+```
+
+Identify baseline values
+
+This is a complicated way of reducing the number of baseline values as there are duplicates from each buffer distance
+
+```{r}
+base <-
+  tots %>%
+    filter(cook == 0 & water == 0 & space == 0 & lighting == 0) %>%
+    group_by(region) %>%
+    slice(1) %>%
+    mutate(baseline = 1) %>%
+    ungroup()
+
+# filter out base case
+tots <-
+  tots %>%
+  filter(cook != 0 | water != 0 | space != 0 | lighting != 0)
+
+# chekc there are no other baseline scenarios
+tots %>% 
+  filter(baseline == 1)
+
+# bind together and arrange
+tots <-
+  rbind(base, tots) %>%
+  arrange(region)
+```
+
+Assign new variable based on scenarios calculated
+*note* subject to change and addition
+
+```{r}
+tots <-
+  tots %>% 
+  mutate(scenario = case_when(baseline == 1 ~ "Baseline",
+                              # dist == "buf_0km" ~ "Urban",
+                              #cook == 1 & water == 1 & space == 1 ~ "Cooking, Water Heating, Space Heating",
+                              cook == 1 & water == 0 & space == 0 & lighting == 0 ~ "Cooking",
+                              cook == 0 & water == 1 & space == 0 & lighting == 0 ~ "Water Heating",
+                              cook == 0 & water == 0 & space == 1 & lighting == 0 ~ "Space Heating",
+                              cook == 0 & water == 0 & space == 0 & lighting == 1 ~ "Lighting",
+                              cook == 1 & water == 1 & space == 1 & lighting == 1 ~ "All Services"),
+        constrain = case_when(unconstrained == 1 ~ "Unconstrained",
+                              unconstrained == 0 ~ "Constrained"),
+        urban_rural = case_when(dist == "buf_0km" & scenario != "Baseline" ~ "Urban",
+                                scenario == "Baseline" ~ "none",
+                                T ~ "Rural")) %>% 
+  # drop the indicator variables
+  select(-c(cook, water, space, lighting, annual, urban, unconstrained, baseline))
+```
+
+Calculate percent reduction based on baseline
+
+```{r}
+tots <-
+  tots %>%
+  group_by(region) %>%
+  # 1 minus calcs the percent reduction as opposed to percent of baseline
+  mutate(percent_pm = 1 - pm_tot / first(pm_tot),
+         percent_co2 = 1 - co2_tot / first(co2_tot),
+         percent_bc = 1- bc_tot / first(bc_tot)) %>%
+         ungroup()
+
+# convert to factor for plotting
+tots$dist <- tots$dist %>% factor(levels = tots$dist %>% unique(), ordered = T)
+
+# make buf distance a numeric
+tots$dist <- gsub("[^0-9]", "", tots$dist) %>% as.numeric()
+
+# Prepare region names for graphing
+tots %<>%
+  mutate(region = gsub("_", " ", region))
+
+# capitalize
+tots$region <-
+  sapply(tots$region, simpleCap)
+
+# Get all regions in a list
+region_list <- unique(tots[,"region"]) %>% 
+  unlist()
+
+# inspect
+tots %>%
+  head()
+```
+
+```{r}
+max_height <-
+  tots$percent_pm %>%
+  max()
+```
+
+
+# Create plots (Deprecated)
+
+## Particulate Matter
+```{r}
+# all_plots <-
+#   lapply(region_list, function(g) {
+# tots %>%
+#   filter(region == g & scenario != "Baseline") %>% # filter for testing
+#   ggplot() +
+#   theme_minimal() +
+#   geom_bar(aes(x = dist,
+#                y = percent_pm,
+#                fill = scenario),
+#            stat = "identity") +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1),
+#         legend.position = "bottom",
+#         text = element_text(size = 16)) +
+#   labs(y = bquote(bold("Percent Reduction from Baseline")),
+#        title = "Change in Particulate Matter",
+#        subtitle = g,
+#        x = "Distance (km)",
+#        color = "Fuel Scenarios") +
+#   scale_x_continuous(breaks = seq(0,20,1)) +
+#   scale_y_continuous(limits = c(0, max_height)) + # set the y scale
+#   # geom_vline(xintercept = 0, # urban area shading
+#   #            size = 10, 
+#   #            alpha = .2) +
+#   # geom_text(aes(x = 0, 
+#   #               label = "Urban", # add urban designation
+#   #               y = 0.5), # set text height
+#   #           angle = 90) + # rotate horizontal
+#   scale_fill_manual(values = wes_palette(n = 5, 
+#                                          name = "Moonrise3")) + # color the legend
+#   theme(legend.title = element_blank()) # remove legend
+# })
+# 
+# all_plots
+```
+
+Save outputs
+```{r}
+# for (i in 1:length(region_list)) {
+#   ggsave(paste0("../output/charts/fuels/bar/", region_list[i], ".png"), all_plots[[i]], dpi = 300, width = 7)
+# }
+```
+
+reorder legend 
+```{r}
+tots$scenario <- factor(tots$scenario,
+                        levels = c("Cooking",
+                                   'Space Heating',
+                                   "Water Heating", 
+                                   'Lighting',
+                                   "All Services"))
+```
+
+# Stacked area chart
+
+```{r}
+tots %>%
+  filter(region == "Central" & scenario == "Water Heating")
+```
+
+
+```{r}
+all_plots <-
+   lapply(region_list, function(g) {
+tots %>%
+  filter(region == g & 
+        !scenario %in% c("Baseline", "All Services") &
+        constrain == "Unconstrained") %>% # filter for testing
+  ggplot() +
+  theme_minimal() +
+  geom_area(aes(x = dist,
+               y = percent_pm,
+               fill = scenario),
+           stat = "identity",
+           position = position_stack(reverse = T)) +
+  geom_line(data = filter(tots, constrain == "Constrained" & region == g & scenario == "All Services"),
+                 aes(x = dist,
+                     y = percent_pm),
+            col = c("#00CD00"),
+            lwd = 2,
+            linetype = "dashed") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom",
+        text = element_text(size = 16)) +
+  labs(y = bquote(bold("Percent Reduction from Baseline")),
+       title = "Change in Particulate Matter",
+       subtitle = g,
+       x = "Distance (km)",
+       color = "Fuel Scenarios") +
+  scale_x_continuous(breaks = seq(0,20,1)) +
+  scale_y_continuous(limits = c(0, max_height + .05)) + # set the y scale
+  # geom_vline(xintercept = 0, # urban area shading
+  #            size = 5, 
+  #            alpha = .2) +
+  # geom_text(aes(x = 0, 
+  #               label = "Urban", # add urban designation
+  #               y = 0.65), # set text height
+  #           angle = 90) + # rotate horizontal
+  scale_fill_manual(values = wes_palette(n = 4, # using fun wes anderson palette
+                                         name = "GrandBudapest1")) + # color the legend
+  theme(legend.title = element_blank()) # remove legend
+ })
+
+# test plot
+all_plots
+```
+
+Save outputs for stacked area
+
+```{r}
+for (i in 1:length(region_list)) {
+  ggsave(paste0("output/charts/fuels/stacked/", region_list[i], ".pdf"),
+         all_plots[[i]],
+         width = 12,
+         height = 7,
+         dpi = 500)
+}
+```
+
+***
+### Old workflow below this
+
+# Show how constrain factor changes effected polygons
+
+```{r}
+census <- readRDS("../output/spatial/india_with_indicies.rds") %>% 
+  as.data.frame()
+
+# Replace NA values with preceding value
+census$state_name <- na.locf(census$state_name)
+
+state_designations <- read.csv("../sup_info/alt_zones.csv", stringsAsFactors = F) %>% 
+  rename(zonal_council = zone)
+
+# state_designations %<>% 
+#   select(cID_1, zonal_council) %>% 
+#   rename(STATE = cID_1)
+
+#state_designations$zones <- gsub("_", " " , state_designations$zone)
+
+dat <- inner_join(census, state_designations, by = c("STATE" = "state"))
+
+dat %>% 
+  count(zone)
+```
+
+## Prepare data (workflow moved tnetFunction())
+
+This shows how many polygons are within the constrain factor that has been chosen.
+```{r}
+#zones <- dat$zonal_council %>% unique() %>% as.list()
+
+# separate out different zonal council groups
+#dat_zones <- split(dat, dat$zonal_council) # create list by region
+```
+
+Creating dataframe of values showing how constrain factor changes the effected polygons in different regions
+
+Define variables for data processing
+# NOTE moved to function; may be issues with capitalization of below code
+```{r}
+# # Set constrain values
+# constrain_factor <- seq(0.01, 0.20, 0.01) %>% as.list()
+# #### add in functionality to change constraint factor
+# constraint <- 'maincook_lpg'
+```
+
+Calculate inclusion based on constraint factor
+```{r}
+# Created nested list for each factor and council zone
+# effective_zones <- lapply(dat_zones, function(x) {
+#   lapply(constrain_factor, function(y) {
+#     x %>% 
+#       transmute(eff = case_when(!!as.name(constraint) <= y ~ 0, # when the constraint is less than the constraint factor assign a 0, meaning the polygon is below a threshold and is not affected
+#                               TRUE ~ 1) ) %>% 
+#     count(eff) %>% # get number of polys meeting or not meeting requirement 
+#     transmute(perc = n/sum(n)) # calculate as a percentage for each region and constraint factor
+#   })
+# })
+```
+
+Reformat data into more usable format
+```{r}
+# out <- sapply(effective_zones, simplify = F, USE.NAMES = T, function(x)  {
+#  t <-  do.call(cbind, x) # combine all values into data.frame
+#  colnames(t) <- constrain_factor
+#   t <-  t[1,] %>% # take only the first value of percent affected
+#     gather()
+#  return(t)
+# })
+# 
+# # bind rows and create new column based on list name ### SUPER USEFUL
+# effective_zones <- bind_rows(out, .id = "Zone")
+# 
+# # make zones capital
+# effective_zones$Zone <- sapply(effective_zones$Zone, simpleCap)
+# 
+# # Fix north east issue
+# effective_zones$Zone <- gsub("North_east", "Northeast", effective_zones$Zone)
+```
+
+## Add in national level
+```{r}
+# #  run case when for all constrain factors
+# all_constrain <- lapply(constrain_factor, function(x) {
+#   dat %>%
+#         transmute(eff = case_when(!!as.name(constraint) <= x ~ 0,
+#                                 TRUE ~ 1) ) %>%
+#       count(eff) %>%
+#       transmute(perc = n/sum(n))
+# })
+# 
+# all_constrain <- do.call(cbind, all_constrain)
+# 
+# # rename columns and rows
+# colnames(all_constrain) <- constrain_factor
+# rownames(all_constrain) <- c(1, 0)
+# 
+# # restructure df
+# all_constrain <- all_constrain[1,] %>%
+#   gather() %>%
+#   mutate(zone = "national")
+# 
+# all_constrain$zone <- sapply(all_constrain$zone, simpleCap)
+```
+
+Create weighted average based on nPeople
+```{r}
+dat <- dat %>% 
+  mutate(people_per_house = (1 * npersons_1) + 
+                                   (2 * npersons_2) + 
+                                   (3 * npersons_3) +
+                                   (4 * npersons_4) +
+                                   (5 * npersons_5) +
+                                   (7 * npersons_6to8) +
+                                   (10 * nperspns_gt9))
+```
+
+
+```{r}
+dat$matroof_other
+# some of the possible cut-offs
+constraint = "people_per_house"
+constraint = "literacy_rate"
+constraint = "maincook_lpg"
+constraint = "pop_density"
+constraint = "quintiles"
+constraint = "matroof_metal"
+constraint = "matroof_plastic"
+constraint = "matroof_concrete"
+constraint = "nperspns_gt9"
+
+ggplot(dat, aes(!!as.name(constraint))) +
+    geom_histogram()
+
+output_plotting <- constraintFunction(dataframe = dat, 
+                           constraint = constraint, # constraint factor as string
+#                           constraint_seq = seq(0,1,.05), 
+                            constraint_seq = seq(2.5, 7.5, .5),
+                          #constraint_seq = seq(1,5,1), # range of constraint factor
+                           caps = T) # capitalize zones names, separate function
+```
+
+# plotting
+
+```{r}
+ggplot() +
+  theme_minimal() +
+  geom_line(data =  output_plotting %>% filter(zone != "National"),aes(as.numeric(key), value, color = zone, group = zone), size = 1.5) +
+   geom_line(data = output_plotting %>% filter(zone == "National"), aes(as.numeric(key), value, group = zone, size = "National"), colour = "black") +
+#  scale_y_continuous(limits = c(0, 1)) +
+#  scale_x_continuous(limits = c(0, .1)) +
+  guides(size = guide_legend(title = "Region")) + 
+   labs(x = "Constraint Metric Value", 
+       y = "Percent of Polygons Excluded",
+       color = "Region", 
+       title = "Changes Polygons Affected by Cutoff",
+       subtitle = paste("Constraint Metric:", constraint)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#  geom_vline(xintercept =5, alpha = .7, color = "gray", size = 2)# + 
+#  geom_point(aes(x = 5, y = .6716791), color = "red") 
+```
+
+# Save outputs
+```{r}
+ggsave(paste0("images/", constraint, ".png"), dpi = 400)
+
+```
+
+
+Change to population of regions for above graph
+change scale of emissions graphs to numeric
+
+4/3/19 Notes
+
+
+Add forest areas to map of india, 
+
+above graph for regions and national, line graph, work on wording

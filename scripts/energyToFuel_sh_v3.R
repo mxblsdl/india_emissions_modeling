@@ -1,0 +1,67 @@
+
+# all space heating assumed to be with wood
+# sum maincook columns beforehand, this will remove need to use select
+
+# Notes: 
+  # hours of space heating per day
+  #   hours = {'Rural': 4, 'Urban': 4, 'Rural_night': 7, 'Urban_night': 9}
+  # Fraction of househoulds that use space heating:
+  #   frH = {'Rural': .875, 'Urban': .875, 'Rural_night': .15, 'Urban_night': .05}
+  # fuel burn rate(kg/hr) = 0.75  
+  # All space heating assumed to be with wood
+
+energyToFuel_sh_v3 <- function(df, monthNum, heating_index) {
+  # dplyr programming convention
+  heating_index <- rlang::sym(heating_index)
+  
+  newCol <- df %>% 
+    # correct columns for space heating
+      #select(TRU, nHouseholds, sheatingDays_index, maincook_coalLigChar, maincook_lpg) %>% 
+      #script below was updated to include more fuels in the sum_col, version 2 had only coalLigChar and LPG! 
+    mutate(sum_col = maincook_wood + maincook_cropres + maincook_dung + maincook_coalLigChar) %>%   
+    # calculate night and day values
+    transmute(
+        mass_day = case_when(
+          TRU == "Rural" ~ nHouseholds * sum_col * 0.875 * 4 * 0.75 * !! heating_index,
+          TRU == "Urban" ~ nHouseholds * sum_col * 0.875 * 4 * 0.75 * !! heating_index),
+        mass_night = case_when(
+          TRU == "Rural" ~ nHouseholds * 0.15 * 7 * 0.75 * !! heating_index,
+          TRU == "Urban" ~ nHouseholds * 0.05 * 9 * 0.75 * !! heating_index
+        )) %>%
+    # sum day and night
+    transmute(!!paste("sh_wood", "kg", monthNum, sep="_") := mass_night + mass_day)
+        
+    # return new columns
+    return(newCol)
+}
+
+## think through rewriting this with case_when
+# census <- dat
+# monthNum <- 1
+# sheatingDays_index <- paste0("space_", monthNum)
+# 
+# census %>% 
+#   select(TRU, nHouseholds, sheatingDays_index, maincook_coalLigChar, maincook_lpg) %>% 
+#   transmute(!!paste("sh_wood", "kg", monthNum, sep = "_") := case_when( 
+#     TRU == "Rural" ~ # adding together the day and night columns
+#       nHouseholds * rowSums(.[ , 4:5, drop=T], na.rm = T) * 0.875 * 4 * 0.75 * !!as.name(sheatingDays_index) + 
+#       nHouseholds * 0.15 * 7 * 0.75 * !!as.name(sheatingDays_index),
+#     TRU == "Urban" ~ nHouseholds * rowSums(.[ , 4:5, drop=T], na.rm = T) * 0.875 * 4 * 0.75 * !!as.name(sheatingDays_index) +
+#       nHouseholds * 0.05 * 9 * 0.75 * !!as.name(sheatingDays_index)
+#       ))
+# 
+# # in the interest of more readable code I'm going to make this 
+# census %>% 
+#   select(TRU, nHouseholds, sheatingDays_index, maincook_coalLigChar, maincook_lpg) %>% 
+#   transmute(
+#     mass_day = case_when(
+#         TRU == "Rural" ~ nHouseholds * rowSums(.[ , 4:5, drop=T], na.rm = T) * 0.875 * 4 * 0.75 * !!as.name(sheatingDays_index),
+#         TRU == "Urban" ~ nHouseholds * rowSums(.[ , 4:5, drop=T], na.rm = T) * 0.875 * 4 * 0.75 * !!as.name(sheatingDays_index)),
+#     mass_night = case_when(
+#        TRU == "Rural" ~ nHouseholds * 0.15 * 7 * 0.75 * !!as.name(sheatingDays_index),
+#        TRU == "Urban" ~ nHouseholds * 0.05 * 9 * 0.75 * !!as.name(sheatingDays_index)
+#     ),
+#     !!paste("sh_wood", "kg", monthNum, sep="_") := mass_night + mass_day
+#   )
+
+

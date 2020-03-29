@@ -1,0 +1,196 @@
+---
+Title: "Task One for India Emissions"
+Date: "November 18th 2018"
+Author: "Max Blasdel"
+---
+# This script will be for merging the census data to the polygons shapefile of India
+Load required packages
+```{r message=FALSE}
+library(dplyr) # main data manipulation
+library(readr) # read csv functions
+library(stringr) # string manipulation
+#library(data.table)
+library(sf) # manipulate spatial objects
+library(magrittr) # use of %<>% operator
+#library(sp) 
+library(haven) # reads dta files
+```
+
+Read in the udir and rdir keys which link the census and the shapefiles. 
+```{r}
+# read in the urban dir file and create a new column of the census code number
+udir <- read_dta("../../tabularData/census-link-files_census_2001-2011/udir.dta",encoding = "latin1")
+udir %<>% mutate(code01_full = paste0(stc2001,dtc2001,subdt2001,plcn2001))
+udir %<>% mutate(code11_full = paste0(mdds_stc, mdds_dtc, mdds_subdt, mdds_plcn))
+udir$code01_full %<>% str_pad(width = 16,side = "right",pad="0")
+
+rdir <- read_dta("../../tabularData/census-link-files_census_2001-2011/rdir.dta",encoding = "latin1")
+rdir %<>% mutate(code01_full = paste0(stc2001,dtc2001,subdt2001,plcn2001))
+rdir %<>% mutate(code11_full = paste0(mdds_stc, mdds_dtc, mdds_subdt, mdds_plcn))
+rdir$code01_full %<>% str_pad(width = 16,side = "right",pad="0")
+```
+
+I want to drop some of the name columns here as well to reduce duplicates
+```{r}
+udir %<>% 
+  select(-mdds_name)
+rdir %<>% 
+  select(-mdds_name)
+```
+
+# Census data
+## Main census file
+
+```{r}
+#### upload merged data
+pca_amen <- readRDS("../../tabularData/2011_villageTown_pcaAndAmenities/pcaAmen_2011_amenImputed")
+
+# Need to rename these to reflect 2011 or 2001
+pca_amen %<>% 
+  mutate(code01_full.x = paste0(stc2001.x,dtc2001.x,subdt2001.x,plcn2001.x)) %>% #urban 2001
+  mutate(code11_full.x = paste0(mdds_stc.x, mdds_dtc.x, mdds_subdt.x, mdds_plcn.x)) %>% #urban 2011 
+  mutate(code01_full.y = paste0(stc2001.y, dtc2001.y, subdt2001.y, plcn2001.y)) %>% #rural 2001
+  mutate(code11_full.y = paste0(mdds_stc.y, mdds_dtc.y, mdds_subdt.y, mdds_plcn.y)) #rural 2011
+```
+01 refers to 2001 and 11 refers to 2011. X is urban, Y is rural. 
+
+*7/24/19*
+## Literacy census file
+Add in of join literacy rate census file
+
+```{r}
+lit_census <- read_csv("../../tabularData/pca_village.csv", col_types = cols()) %>% 
+  select(State, District, Subdistt, `Town/Village`, Name, TOT_P, P_LIT) %>% 
+  mutate(literacy_rate = P_LIT / TOT_P)
+
+pca_amen <- left_join(pca_amen, lit_census, by = c("mdds_stc.y" = "State", 
+                                       "mdds_dtc.y" = "District", 
+                                       "mdds_subdt.y" = "Subdistt",
+                                       "mdds_plcn.y" = "Town/Village"))
+```
+
+## wealth indices 
+*also added on 7/24/19*
+```{r}
+# wealth <- read_csv("../../tabularData/wealthIndeces/processed/wealth_quintiles.csv", col_types = cols()) %>% 
+#   select(state_code, district_code, subdistrict_code, village_code, total, quintiles)
+# 
+# # pad with zeros
+# wealth$state_code %<>% str_pad(width = 2, side = "left", pad = 0)
+# wealth$district_code %<>% str_pad(width = 3, side = "left", pad = 0)
+# wealth$subdistrict_code %<>% str_pad(width = 5, side = "left", pad = 0)
+# wealth$village_code %<>% str_pad(width = 6, side = "left", pad = 0)
+# 
+# pca_amen <- left_join(pca_amen, wealth, by = c("mdds_stc.y" = "state_code", 
+#                                        "mdds_dtc.y" = "district_code", 
+#                                        "mdds_subdt.y" = "subdistrict_code",
+#                                        "mdds_plcn.y" = "village_code"))
+
+
+wealth <- read.csv("../../wealth_q_pca/wealth_quintiles_pca_01152020_VG.csv")
+
+# pad with zeros
+wealth$state_code %<>% str_pad(width = 2, side = "left", pad = 0)
+wealth$district_code %<>% str_pad(width = 3, side = "left", pad = 0)
+wealth$subdistrict_code %<>% str_pad(width = 5, side = "left", pad = 0)
+wealth$village_code %<>% str_pad(width = 6, side = "left", pad = 0)
+
+pca_amen <- left_join(pca_amen, wealth, by = c("mdds_stc.y" = "state_code", 
+                                       "mdds_dtc.y" = "district_code", 
+                                       "mdds_subdt.y" = "subdistrict_code",
+                                       "mdds_plcn.y" = "village_code"))
+```
+
+## distance to town 
+*added on 8/6/19* follows same merge pattern as previous datasets
+```{r}
+distance <- read_csv("../../tabularData/2011_villageDirectory/village_directory_2011wcode_modSmall.csv", col_types = cols()) %>% 
+  select(statcode,
+         distcode, 
+         sdiscode, 
+         villcode,
+         dsttownkm)
+
+distance$statcode %<>% str_pad(width = 2, side = "left", pad = 0)
+distance$distcode %<>% str_pad(width = 3, side = "left", pad = 0)
+distance$sdiscode %<>% str_pad(width = 5, side = "left", pad = 0)
+distance$villcode %<>% str_pad(width = 6, side = "left", pad = 0)
+
+pca_amen <- left_join(pca_amen, distance, by = c("mdds_stc.y" = "statcode", 
+                                       "mdds_dtc.y" = "distcode", 
+                                       "mdds_subdt.y" = "sdiscode",
+                                       "mdds_plcn.y" = "villcode"))
+```
+
+
+I want to drop some of the name columns because it was found that they cause duplicates later on.
+
+```{r}
+pca_amen %<>% 
+  select(-name, -mdds_name.x)
+```
+
+
+Some of the code01 values are not 16 digits long and seem to be missing values on the right or place section. This can be padded with 0s but I do not think this will result in any matches with the polygons.
+merging the udir/rdir and the pca
+This step connects the udir and census data, this produces more matches with the polygons
+
+```{r}
+# Urban 2011 census with udir 2011 code
+udir_merge<- inner_join(udir, pca_amen, by=c("code11_full"="code11_full.x"))
+# Rural 2011 census with rdir 2011 code
+rdir_merge<- inner_join(rdir, pca_amen, by=c("code11_full"="code11_full.y"))
+rm(udir, rdir)
+```
+
+*2/7/19* Update with new shapefile from Varun. Issues with which RDS to use.
+Read in polygon file. Using shapefile as opposed to RDS.
+```{r add shapefile data}
+# Compressed RDS version
+merged_shp <- readRDS("../../geoData/fuelEndUses/merged_shp_w_fuelUseRasters_bilinear")
+merged_shp %<>% st_as_sf()
+```
+
+Joining the udir_merge with the polygon on the 2001 codes. This should result in polygons with 
+*With full dataset; examine the TRU=NA returns for each join. Look into population numbers*
+
+```{r}
+urb_cen <- inner_join(merged_shp, udir_merge, by=c("C_CODE01"="code01_full")) #4,798
+rur_cen <- inner_join(merged_shp, rdir_merge, by=c("C_CODE01"="code01_full")) #612,329
+
+# Just a check for merging on code11. Joining on the 2011 code produces nothing
+# inner_join(merged_shp, udir_merge, by=c("C_CODE01"="code11_full.y"))
+# udir_merge[,115:120] %>% head()
+```
+
+Explore some of the population numbers.
+```{r}
+#poly_cen<-rbind(urb_cen, rur_cen) # Doesn't work because some of the rows are different. Due to how they were merge. These fields are not needed and will be dropped.
+urb_cen[,176:177]<-NULL
+rur_cen[,176:177]<-NULL
+
+# final polygon wil be written out later on
+poly_cen <- rbind(urb_cen, rur_cen)
+```
+
+Remove un-needed items
+
+```{r}
+rm(merged_shp, udir_merge, rdir_merge, pca_amen, rur_cen, urb_cen, wealth, distance, lit_census)
+gc()
+```
+
+Rename variable for simplicity
+
+```{r}
+poly_cen <- poly_cen %>% 
+  rename(C_CODE0 = C_CODE01)
+```
+
+*7/18/19* In a quest to add census information in the least painless way I am just taking the global var poly_cen and moving to the add_census_data.rmd for further processing
+
+Write the resultant shapefile or the data.frame without the geometry
+
+```{r}
+saveRDS(poly_cen, "../output/spatial/Shapefile_w_census.RDS")
+```

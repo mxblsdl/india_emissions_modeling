@@ -1,0 +1,37 @@
+NAME_1,ID_1,zonal_council,ID_ZC,cState,cID_1,wState,mNAME_1,mID_1
+Chhattisgarh,7,central,5,CHHATTISGARH,22,Chhattisgarh,Chhattisgarh,7
+Madhya Pradesh,19,central,5,MADHYA PRADESH,23,Madhya pradesh,Madhya Pradesh,19
+Uttar Pradesh,34,central,5,UTTAR PRADESH,9,Uttar pradesh,Uttar Pradesh,32
+Uttarakhand,35,central,5,UTTARAKHAND,5,Uttarakhand,Uttarakhand,33
+Bihar,5,eastern,4,BIHAR,10,Bihar,Bihar,5
+Jharkhand,15,eastern,4,JHARKHAND,20,Jharkhand,Jharkhand,15
+Odisha,26,eastern,4,ODISHA,21,Orissa,Odisha,35
+West Bengal,36,eastern,4,WEST BENGAL,19,West Bengal,West Bengal,34
+Arunachal Pradesh,3,north_east,2,ARUNACHAL PRADESH,12,Arunachal Pradesh,Arunanchal Pradesh,3
+Assam,4,north_east,2,ASSAM,18,Assam,Assam,4
+Manipur,21,north_east,2,MANIPUR,14,Manipur,Manipur,21
+Meghalaya,22,north_east,2,MEGHALAYA,17,Meghalaya,Meghalaya,22
+Mizoram,23,north_east,2,MIZORAM,15,Mizoram,Mizoram,23
+Nagaland,24,north_east,2,NAGALAND,13,Nagaland,Nagaland,24
+Sikkim,30,north_east,2,SIKKIM,11,Sikkim,Sikkim,29
+Tripura,33,north_east,2,TRIPURA,16,Tripura,Tripura,31
+Chandigarh,6,northern,1,CHANDIGARH,4,Chandigarh,Chandigarh,6
+Haryana,12,northern,1,HARYANA,6,Haryana,Haryana,12
+Himachal Pradesh,13,northern,1,HIMACHAL PRADESH,2,Himachal Pradesh,Himachal Pradesh,13
+Jammu and Kashmir,14,northern,1,JAMMU & KASHMIR,1,Jammu and Kashmir,Jammu & Kashmir,14
+NCT of Delhi,25,northern,1,NCT OF DELHI,7,Delhi,NCT of Delhi,25
+Punjab,28,northern,1,PUNJAB,3,Punjab,Punjab,27
+Rajasthan,29,northern,1,RAJASTHAN,8,Rajasthan,Rajasthan,28
+Andaman and Nicobar,1,southern,6,ANDAMAN & NICOBAR ISLANDS,35,Andaman and Nicobar,Andaman & Nicobar Island,1
+Andhra Pradesh,2,southern,6,ANDHRA PRADESH,28,Andhra Pradesh,Andhra Pradesh,2
+Karnataka,16,southern,6,KARNATAKA,29,Karnataka,Karnataka,16
+Kerala,17,southern,6,KERALA,32,Kerala,Kerala,17
+Lakshadweep,18,southern,6,LAKSHADWEEP,31,Lakshadweep,Lakshadweep,18
+Puducherry,27,southern,6,PUDUCHERRY,34,Puducherry,Puducherry,26
+Tamil Nadu,31,southern,6,TAMIL NADU,33,Tamilnadu,Tamil Nadu,30
+Telangana,32,southern,6,TELANGANA,NA,Telangana,Telangana,
+Dadra and Nagar Haveli,8,western,3,DADRA & NAGAR HAVELI,26,Dadra & Nagar Haveli,Dadara & Nagar Havelli,8
+Daman and Diu,9,western,3,DAMAN & DIU,25,Diu and Daman,Daman & Diu,9
+Goa,10,western,3,GOA,30,Chandigarh,Goa,10
+Gujarat,11,western,3,GUJARAT,24,Gujarat,Gujarat,11
+Maharashtra,20,western,3,MAHARASHTRA,27,Maharashtra,Maharashtra,20

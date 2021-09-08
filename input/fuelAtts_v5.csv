@@ -1,0 +1,26 @@
+Fname,Fname2,Fname3,activity,Fuel,LHV,eff_fuelLevel,ef_pm25,ef_bc,ef_co2,v4tov5_update,Notes
+Agricultural Wastes,cropres,ck_cropres,ck,AG,15.2,0.13,2.667,0.256,1302,1,CO2 not updated
+Animal wastes,dung,ck_dung,ck,AW,11.8,0.14,9.143,0.2,1046,1,CO2 not updated
+Biogas,biogas,ck_biogas,ck,B1,33.8,0.5,0.053,0.003,1444,1,CO2 not updated
+Wood,wood,ck_wood,ck,BI,16.2,0.16,3.5,0.542,1358,1,CO2 not updated
+Wood,,sh_wood,sh,BI,16.2,0.54,1.667,0.167,1358,1,CO2 not updated
+Briquettes,,,,BQ,,,,,,,
+Brown Coal,,,,CB,,,,,,,
+Charcoal,coalLigChar,ck_coal,ck,CH,15.9,0.17,0.904,0.069,2411,1,CO2 not updated
+Coking Coal,,,,CK,,,,,,,
+Hard Coal,,,,CL,,,,,,,
+Electricity,,,,EL,0,0,,,,,
+Solar,,,,ES,0,0,,,,,
+Wind,,,,EW,0,0,,,,,
+Heavy Fuel Oil,,,,HF,,,,,,,
+Kerosene,kerosene,ck_kero,ck,KR,42.6,0.4,0.01,0.007,2985,1,CO2 not updated
+Light distillates,,,,LF,,,,,,,
+Liquefied Petroleum Gases,,sh_lpg,ck,LP,57,0.55,0.014,0.001,3085,1,added for model needs
+Liquefied Petroleum Gases,lpg,ck_lpg,ck,LP,57,0.55,0.014,0.001,3085,1,CO2 not updated
+Middle distillates,,,,MD,,,,,,,
+Natural Gas,,,,NG,,,,,,,
+Petroleum Coke,,,,PK,,,,,,,
+Waste-- Municipal and Industrial,,,,WA,,,,,,,
+other_assumedWood,other,ck_other,ck,OT,16.2,0.143,5.07,0.693,1358,,
+Kerosene,swl,lt_swl_kero,lt,KR,,,81,81,2800,,
+Kerosene,hur,lt_hur_kero,lt,KR,,,10,10,3080,,

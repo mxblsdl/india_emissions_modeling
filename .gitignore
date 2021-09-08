@@ -36,4 +36,4 @@ vignettes/*.pdf
 *.knit.md
 
 # input data
-input/
+spatial_input.rds

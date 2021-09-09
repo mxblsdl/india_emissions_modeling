@@ -1,0 +1,456 @@
+---
+title: "Exploring Duplicates for India Merge"
+author: "Max Blasdel"
+date: "December 19, 2018"
+output: html_document
+---
+# Script for exploring duplicate entries in the merged shapefile data. 
+
+#Inputs: Merged_shape with census 
+#Outputs: Cleaner version of merged_shape with most duplicates characterized and removed. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE}
+library(dplyr) # main data manipulation
+library(readr) # read csv functions
+library(stringr) # string manipulation
+library(sf) # manipulate spatial objects
+library(magrittr) # use of %<>% operator
+```
+
+The rdir key has different information between 2001 and 2011. Maybe the village split at some point. Now the 2011 census with different places are joined to the same geometry. 
+Number of people differs since they are joined on the udir and rdir derived C_CODEs.
+
+Load relavent data for analysis including the saved polygon_census merge. 
+```{r}
+# polygon with census information
+# output of poly_census_merge.Rmd script
+poly_cen <- read_rds("../output/spatial/Shapefile_w_census.RDS") %>% st_as_sf()
+
+pca_amen <- readRDS("../../tabularData/2011_villageTown_pcaAndAmenities/pcaAmen_2011_amenImputed")
+```
+
+Checking for and removing small polygons in the main dataset
+
+```{r}
+# Calculate area for shapefile
+# merged_shp$area <- merged_shp %>% st_area()
+
+# Check that there are small polygons in the original shapefile. 
+
+# merged_shp %>% 
+#  filter(as.numeric(area) < 400)
+# About 115 small polygons
+```
+
+There are some sliver polygons. I may go back up the workflow and remove these before any joins are done. For now remove from poly_cen output file.
+
+```{r}
+# Calculate area of polygons
+poly_cen$area <- poly_cen %>% st_area()
+
+# maybe not as significant as first thought
+slivers <- poly_cen %>% 
+  filter(as.numeric(area) <= 400)
+
+slivers$nPeople %>% sum()
+```
+
+Filter out slivers and small polygons
+
+```{r}
+poly_cen %<>%
+  filter(as.numeric(area) > 400)
+
+rm(slivers)
+```
+
+Remove areas labeled "TEHSIL" as per Varun's email communication about how Tehsils are a repeat grouping of regions. They should all be counted somewhere else in the dataset.
+
+```{r}
+poly_cen %>% 
+  filter(LEVEL == 'TEHSIL') %>% 
+  summarise(sum(nPeople))
+
+poly_cen %<>%
+  filter(LEVEL != 'TEHSIL')
+```
+
+Population check
+```{r}
+poly_cen$nPeople %>% sum()
+```
+
+# Explore the duplicates. 
+
+Population in poly_cen file is too large for India.
+Find the duplicate C_CODEs and calculate the population of those dubs.
+
+First: create a table of unique C_CODE values and their occurence. Intermediate step.*poly_dubs*
+Second: Find all C_CODEs that occur more than once. *poly_dubs_full* These are values to explore.
+Third: Remove duplicates and rejoin with poly_dubs_full dataset.
+
+The poly_dubs_full are the duplicate C_CODE0 polygons within the poly_cen dataset. 
+```{r}
+poly_dubs <- poly_cen$C_CODE0 %>% #589712 obs long
+  table() %>% 
+  data.frame()
+
+ccode_freq <- poly_cen %>%
+  as.data.frame() %>%
+  group_by(C_CODE0) %>%
+  transmute(Freq = n()) %>%
+  distinct() %>%
+  ungroup()
+
+# I want to get single counts for the C_CODEs that are duplicated. 
+ccode_freq_uni <- ccode_freq %>%
+  filter(Freq == 1)
+
+# full polygon of all duplicates
+poly_dubs_full <- 
+  poly_cen %>%
+    filter(!C_CODE0 %in% ccode_freq_uni$C_CODE0)
+
+# these are actually not unique
+ccode_freq_dup <- ccode_freq %>%
+  filter(Freq > 1)
+```
+
+# From Varun's email about the duplicates
+Duplicates may happen when a district splits from 2001 and 2011. In this case we can add the attributes together. This applies to different geometry polygons, but the real issue is that we have some duplicate geometry polygons with duplicate information in them. Need to filter out exact duplicates as this is causing the population to be much larger than it should be. 
+
+*Scenarios:* 
+Polygon has different geometry - sum populations and distribute based on proportional area.
+Polygon has exact geometry but different populations - average populations, keep only one.
+Polygon has exact duplicates - remove all except one of these polygons.
+
+Looking into polygons that intersect
+This code chunk checks for multiple rows of data that have the same geometry.
+When a village or town changed/split between 2001 and 2011 they will have census data for 2011, but join to the same polygon from 2001 as other census entries. 
+This function also deals with true duplicate polygons and populations. 
+Only condition missing is multiple polygons with different geometries.
+
+*7/30/19* Notes:
+The below chunk is meant to seperate out polygons that are possible duplicates or otherwise meet certain criteria.
+A better way to do this would be to add columns to the larger dataset and then filter based on those column. 
+I just feel a little frustrated by the overall complexity of the for loop and think it could be improved on.
+
+*WARNING* Started to update function but did not finish, currently does not run as some vars have been changed. 
+```{r}
+# Create list to store results
+feature_list <- list()
+to_explore <- list()
+
+for (i in 1:nrow(ccode_freq_dup)){
+    # Create a temporary object with multi rows that have same C_CODE0
+  temp <- poly_dubs_full %>% 
+    dplyr::filter(C_CODE0 == ccode_freq_dup[i,1])
+
+## Different Geometry and same C_CODE Scenario ##  
+  # Check for different geometries. If true stop here and look into these seperately
+  if (temp$geometry %>% unique() %>% length() > 1){
+    features = NULL
+    # set feature to NULL and move on to next
+    feature_list[[i]] <- features
+    to_explore[[i]] <- temp # These have C_CODE duplicates and different geometries.
+  }
+
+## True duplicate Scenario ##
+  # checks that there is only one feature from 01 to 11
+  # When there is a district split from 01 to 11 there will be a different code11_full value. If that value is the same this just takes one of the resulting entries. 
+  else if (temp$code11_full %>% unique() %>% length() == 1){ # The code 11 checks for splits between 01 and 11. These are the district splits from 01 to 11 on same polygon.
+    features <- temp %>% st_intersection()
+    feature_list[[i]] <- features
+  }
+
+  ## Same geometry different C_CODE ##
+  ## Split from 01 to 11 scenario ##
+  # checks for overlaping geometry
+  # If there are overlaps, calculates new metrics by using weighted average approach.
+  else if (st_intersection(temp)$n.overlaps > 1){
+    
+    # Calculate new nPeople and nHouseholds
+    # TODO should really be names of vars
+    new_metrics <- summarise_at(.tbl = temp, .vars = c(73:74), .funs = sum)
+    
+    # remove the geomety column to make into dataframe
+    st_geometry(new_metrics) <- NULL
+   
+     # Calculate the weighted metrics from the census data based on nHouseholds
+    temp_metrics <- temp[,c(73,84:153)] 
+    st_geometry(temp_metrics) <- NULL
+    
+    # Base R approach to calculating weighted metrics
+    # Check provided below
+    t <- temp_metrics[,2:71] * (temp_metrics[,1] / sum(temp_metrics$nHouseholds))
+    t <- summarise_all(t, .funs = sum)
+    
+    # bind populations and census metrics together
+    new_metrics <- cbind(new_metrics, t)
+    features <- st_intersection(temp)
+    
+    # check to make sure there is only one row from resultant dataset
+    # add new metrics to feature
+    features[,73:74] <- new_metrics[,1:2]
+    features[,84:153] <- new_metrics[,3:72]
+    }
+  feature_list[[i]] <- features
+}
+
+# Bind together
+features <- do.call(rbind, feature_list)
+
+features$maincook_lpg %>% max(na.rm = T) # check
+
+to_explore <- do.call(rbind, to_explore) # Has duplicate C_CODE rows of data in it
+
+to_explore$maincook_lpg %>% max(na.rm = T)
+
+rm(feature_list)
+
+features$nPeople %>% sum()
+###############################
+```
+The to_explore object has rows of data that are of different geometry and have the same C_CODE. These are probably artifacts from the original shapefile which does have some overlapping polygons in it.  
+
+# Weighted function testing
+Creating weighted average values. Just a test for making these the weighted averages rowsum to 1 by category.
+These are weighted averages of the different census metrics. The weight is based on nHouseholds.
+```{r weighted metrics math check}
+# temp_metrics<-temp[,c(73,84:153)] 
+# st_geometry(temp_metrics)<-NULL
+# # Base R approach to problem
+# t<-temp_metrics[,2:71]*(temp_metrics[,1]/sum(temp_metrics$nHouseholds))
+# t<-summarise_all(t, .funs = sum)
+# 
+# t[1:9] %>% rowSums()
+# t[10:19] %>% rowSums()
+# t[20:26] %>% rowSums()
+# t[27:33] %>% rowSums()
+# t[34:40] %>% rowSums()
+# t[41:50] %>% rowSums()
+# t[51:56] %>% rowSums()
+# t[57] %>% rowSums()
+# t[58:67] %>% rowSums()
+# t[68:70] %>% rowSums()
+```
+
+Creating a key for the census variables that sum to 1
+```{r}
+# data.frame(matroof = '1:9',
+#            matwall = '10:19',
+#            matfloor = '20:26',
+#            nrooms = '27:33',
+#            npersons = '34:40',
+#            mainwater = '41:50',
+#            mainlight = '51:56',
+#            latrines = '57',
+#            maincook = '58:67',
+#            cooklocation = '68:70')
+```
+
+# From the duplicate CCODE_0s there are:
+features - objects with the new metrics calculated
+to_explore - different geometry, some duplicates exist as the different geometry comes from multiple 'sets' with the same CCODE_0.
+
+The below functions work but this will be for examining the to_explore objects. This should quantify all scenarios for the duplicate C_CODE0s from the poly_cen file.
+To_explore have different geometries, but the same C_CODE
+
+I want to check if they already have different populations
+This checks if the rows in to_explore have the same populations. 
+
+# Seperate out to_explore into two groups:
+# 1) different populations:
+    1. Of the different populations group there are groups of data that have the same data. For example four entries with the same C_CODE. Two of these have one set of data and the other two have a different set of data. I want to take these and remove duplicates. This may be wrong, but ultimitely there are duplicates and too many people in the dataset. Looking for where these overlaps come from. 
+
+# 2) Same populations. 
+    2. I can distribute these for now based on area. 
+  Remember these are different area polygons. 
+  
+Function to seperate items into two lists.
+First list has different populations,
+Second list has identical populations
+```{r}
+dif_pop <- function(object){
+  
+  # Create output lists
+  same_pop <- list()
+  diff_pop <- list()
+  
+  # vector of unique ids
+  id <- object$C_CODE0 %>%
+    unique()
+  
+  # perform loop seperating each C_CODE entry into one of two lists
+  for (i in 1:length(id)) {
+    # create temporary var for each C_CODE
+    temp <- object %>%
+      filter(C_CODE0 == id[i])
+    
+    # checks that populations differ
+    if (temp$nPeople %>% 
+        unique() %>% 
+        length() > 1) {
+      diff_pop[[i]] <- temp
+    }
+    else
+      same_pop[[i]] <- temp
+  }
+  return(list(diff_pop, same_pop))
+  # return(do.call(rbind, outputList), do.call(rbind, out2))
+}
+
+dif_pop_objects_list <- dif_pop(to_explore)
+```
+
+Many of the objects in the above list have the same geometry but made it past the for loop filter because there are two sets of polygons with duplicates for a given CCODE_0.
+
+Put into list, check if populations are same (all same), only take one from list
+
+Appears to check out as a valid method
+```{r}
+# Seperate first item of list
+dif_pop_objects <- do.call(rbind, dif_pop_objects_list[[1]])
+
+# Check population
+dif_pop_objects$nPeople %>% 
+  sum()
+
+# split into list based on code11_full this is the number that changes
+dif_pop_objects_split <- split(dif_pop_objects, dif_pop_objects$code11_full)
+
+# checks that if there are the same populations only take one entry. Upon inspection there appear to be many duplicates in this dataset. 
+out <- lapply(dif_pop_objects_split, function(x) if(x$nPeople %>% 
+                                                    unique() %>% 
+                                                    length() == 1) x[1,])
+out <- do.call(rbind, out)
+```
+
+The second set has the same population in different geometries 
+
+True duplicates could happen if the polygon file has multiple polygons for a given area that have the same C_CODE0.
+
+```{r}
+dif_pop_objects <- do.call(rbind, dif_pop_objects_list[[2]])
+
+dif_pop_objects$nPeople %>% sum()
+
+# Two methods for dealing with these. I could just distribute the populations based on relative area 
+# Or I could remove duplicates, but this would mean removing polygons.
+
+######################################################################
+# Method of removing entires
+# May be inappropirate
+dif_pop_objects_split <- split(dif_pop_objects, dif_pop_objects$code11_full)
+# checks that if there are the same populations only take one entry. Upon inspection there appear to be many duplicates in this dataset. 
+### This is the same workflow as the chunk above
+out2 <- lapply(dif_pop_objects_split, function(x) if(x$nPeople %>% 
+                                                     unique() %>%
+                                                     length() == 1) x[1,])
+out2 <- do.call(rbind, out2)
+
+out2$nPeople %>% sum()
+
+out2$maincook_lpg %>% max(na.rm = T)
+```
+
+I could distribute the single population based on area of the respective polygons as opposed to distributing the sum population. 
+
+Redistribute the populations
+```{r}
+# Function to distribute populations by relative area
+distPop<- function(object){
+  
+  # create unique ids
+  id <- object$C_CODE0 %>%
+    unique()
+  
+  outList <- list()
+  for (i in 1:length(id)) {
+    t <- object %>% 
+        filter(C_CODE0 == id[i])
+    pop <- t$nPeople %>% sum(na.rm = T)
+    t %>% 
+      mutate(nPeople = pop*(area/sum(area)))
+    outList[[i]]<-t
+  }
+  return(do.call(rbind, outList))
+}
+
+output_pop <- distPop(dif_pop_objects)
+
+output_pop$maincook_lpg %>% max(na.rm = T)
+```
+
+# Summary of populations
+
+Relevent objects:
+poly_cen <-> shapefile with census data
+poly_dubs_list <-> duplicates that have been dissected in this script
+
+From poly_dubs_list:
+features <-> polygons that had overlapping geometries, issues resolved and census metrics redistributed
+out <-> polygons with duplicate CCDOE_0s that were tied to multiple polygons. There were different sets of polygons all set to same CCODE_0. Issues resolved and duplicates were removed. 
+out2 <-> different geometry polygons with the same population, most appear to be essentially duplicates. This object has duplicate data removed resulting in less population.
+output_pop <-> variation of out2 with population distributed based on relative area and no data removed.
+
+# Update poly_cen
+Remove poly_dubs entries from poly_cen
+```{r}
+without_dubs <- poly_cen[!poly_cen$C_CODE0 %in% poly_dubs_full$C_CODE0,] # use this syntax in the Odisha script
+
+# check population of this obj
+without_dubs$nPeople %>% sum() # a little over 1B
+```
+
+Add in features
+remove columns that are added from st_intersection
+
+```{r}
+features %<>% 
+  select(-c(n.overlaps, origins))
+
+without_dubs<-rbind(without_dubs, features)
+wo_dups_pop_feat <- without_dubs$nPeople %>% sum()
+```
+
+Add in out and output_pop
+Retains polygon data with redistributed populations
+```{r}
+without_dubs <- rbind(without_dubs, out)
+wo_dups_pop_feat_out <- without_dubs$nPeople %>% sum()
+
+without_dubs <- rbind(without_dubs, output_pop)
+wo_dups_pop_feat_out_output_pop <- without_dubs$nPeople %>% sum()
+```
+
+# Alternate: add in out and out2
+Removes polygon data
+
+Need to think about these scenarios a bit more
+```{r}
+without_dubs <- rbind(without_dubs, out)
+wo_dups_pop_feat_out <- without_dubs$nPeople %>% sum()
+
+without_dubs <- rbind(without_dubs, out2)
+wo_dups_pop_feat_out_out2 <- without_dubs$nPeople %>% sum()
+```
+
+Remove some old junk
+```{r}
+rm(merged_shp, poly_cen, poly_dubs_full, pca_amen)
+rm(t, temp, temp_metrics)
+gc()
+```
+
+
+possible write out for later use
+# trying to reduce the number of spatial objects I am writing out
+```{r}
+saveRDS(without_dubs, "../output/poly_cen_update")
+```
+

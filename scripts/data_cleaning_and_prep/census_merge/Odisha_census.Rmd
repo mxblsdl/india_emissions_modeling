@@ -1,0 +1,185 @@
+---
+Title: "Looking into Odisha, State 21"
+Date: "Dec 23, 2018"
+---
+
+#For Exploring some of the census data connected to Odisha
+Inputs: original data
+Outputs: none
+
+```{r message=FALSE}
+require(tidyverse)
+require(sf)
+require(magrittr)
+```
+
+Read in the census information
+```{r}
+pca_amen <- readRDS("../census/pcaAmen_2011_amenImputed")
+poly_cen<-read_rds("Shapefile_w_census") %>% st_as_sf()
+```
+
+Isolate Odisha in the census information and the polygon.
+Calculate some population numbers.
+```{r}
+Odisha_poly<-poly_cen %>% 
+  filter(state_name == "ODISHA")
+
+Odisha<-pca_amen %>% 
+  filter(state_name == "ODISHA")
+
+data.frame("Odisha Poly" = Odisha_poly$nPeople %>% sum(),
+           "Odisha Census" = Odisha$nPeople %>% sum(),
+           "Difference" = Odisha$nPeople %>% sum() - Odisha_poly$nPeople %>% sum())
+rm(pca_amen, poly_cen)
+```
+There is a difference of about 7.8M people
+
+```{r}
+Odisha$urbanRural.y %>% unique() # only returns urban and rural
+Odisha$level %>% unique() # only village or town
+```
+
+
+Find the number of unique identifiers that get used in the spatial merge
+```{r}
+rur_plcn<- Odisha$mdds_plcn.y %>% unique() %>% length() # codes to Rural
+urb_plcn<- Odisha$mdds_plcn.x %>% unique() %>% length() # codes to Urban
+rur_plcn+urb_plcn # sums to 47923, 16 off the total number
+
+# Find the identifier codes that occur more than once for rur and urb
+rur_plcn<-Odisha$mdds_plcn.y %>%
+  table() %>% 
+  data.frame() %>% 
+  filter(Freq > 1)
+
+urb_plcn<-Odisha$mdds_plcn.x %>% 
+  table() %>% 
+  data.frame() %>%
+  filter(Freq > 1)
+```
+
+Finds the duplicate indentifier values.
+Reduces to just first row
+```{r}
+rur<-list()
+for (i in 1:nrow(rur_plcn)){
+temp<-rur_plcn$.[i] %>% as.character() %>% as.numeric() # is in factor, convert
+temp<-Odisha %>% # filter based on codes with doubles
+  filter(mdds_plcn.y == temp)
+rur[[i]]<-temp[1,] # Take just one row from these duplicates
+}
+
+urb<-list() # repeat for urban
+for (i in 1:nrow(urb_plcn)){
+  temp <- urb_plcn$.[i] %>% as.character() %>% as.numeric()
+  temp<-Odisha %>% 
+    filter(mdds_plcn.x == temp)
+  urb[[i]]<-temp[1,]
+}
+```
+
+Bind results together and then update original db
+```{r}
+uniqs<-rbind(do.call(rbind, rur), do.call(rbind, urb))
+
+# Construct some simple dataframes of the plcn codes that need to be removed from the Odisha df
+r<-rur_plcn$. %>% as.data.frame() %>% #Seperate out the plcn codes from rural
+  rename(mdds_plcn.y = '.')
+r<-transform(r, mdds_plcn.y = as.character(mdds_plcn.y))
+
+u<-urb_plcn$. %>% as.data.frame() %>% 
+  rename(mdds_plcn.x = '.')
+u<-transform(u, mdds_plcn.x = as.character(mdds_plcn.x)) 
+
+# Run the antijoins seperately
+Odisha_unique<-anti_join(Odisha, r)
+Odisha_unique<-anti_join(Odisha_unique, u)
+#Bind together
+# Bind the unique values back into the Odisha census information
+Odisha_update<-rbind(Odisha_unique, uniqs)
+
+# Look at changes in population
+data.frame("Odisha Poly" = Odisha_poly$nPeople %>% sum(),
+           "Odisha Census" = Odisha$nPeople %>% sum(),
+           "Difference" = Odisha$nPeople %>% sum() - Odisha_poly$nPeople %>% sum(),
+           "Odisha wo Duplicates" = Odisha_update$nPeople %>% sum())
+
+Odisha_unique$nPeople %>% sum()
+```
+
+Removing the duplicate entries from the census removed about 4.5M people from the count. These duplicates are due to slight differences in names and some of the plcn codes. It appears that duplicates are caused by differences in how the names are recorded. 
+```{r}
+  temp <- urb_plcn$.[1] %>% as.character() %>% as.numeric()
+  temp<-Odisha %>% 
+    filter(mdds_plcn.x == temp)
+  temp # scroll to the mdds_name.x
+```
+
+Remove junk
+
+```{r}
+rm(urb, urb_plcn, rur, rur_plcn, r, u, uniqs)
+gc()
+```
+
+# Explore Odisha some more
+
+Try to quantify the NA values in the Odisha census information
+```{r}
+Odisha %>% head()
+```
+
+I want to look at how the polygon and the census informatino differ. What are some Of the entries that are not connected to the census.
+
+Prepare the census information with the process from Task 1
+```{r}
+Odisha_unique %<>% 
+  mutate(code01_full.x = paste0(stc2001.x,dtc2001.x,subdt2001.x,plcn2001.x)) %>% #urban 2001
+  mutate(code11_full.x = paste0(mdds_stc.x, mdds_dtc.x, mdds_subdt.x, mdds_plcn.x)) %>% #urban 2011 
+  mutate(code01_full.y = paste0(stc2001.y, dtc2001.y, subdt2001.y, plcn2001.y)) %>% #rural 2001
+  mutate(code11_full.y = paste0(mdds_stc.y, mdds_dtc.y, mdds_subdt.y, mdds_plcn.y)) #rural 2011
+```
+
+trying to anti join to find data that is in the census but not the polygon.
+```{r}
+anti_join(Odisha, Odisha_poly, by=c("code01_full.y" = "C_CODE0"))
+anti_join(Odisha, Odisha_poly, by=c("code01_full.x" = "C_CODE0"))
+```
+Trying to just use single columns see if numbers differ
+```{r}
+code01_full.y<-Odisha_unique$code01_full.y %>% as.data.frame()
+code01_full.x<-Odisha_unique$code01_full.x %>% as.data.frame()
+CCODE_0<-Odisha_poly$C_CODE0 %>% as.data.frame()
+
+anti_join(code01_full.y, CCODE_0)
+anti_join(code01_full.x, CCODE_0)
+
+```
+
+
+
+
+```{r}
+# plcn_rur<-Odisha_poly$mdds_plcn.y %>% na.omit()
+# plcn_rur %<>% as.data.frame() %>% rename(mdds_plcn.y = '.')
+# 
+# plcn_rur<-transform(plcn_rur, mdds_plcn.y = mdds_plcn.y %>% as.character())
+
+# Remove the spatial attributes for easier data merging
+st_geometry(Odisha_poly)<-NULL
+Odisha_poly
+
+Lost_census_info.y<-anti_join(Odisha_unique, Odisha_poly, by = "plcn2001.y")
+Lost_census_info.x<-anti_join(Odisha_unique, Odisha_poly, by = "plcn2001.x")
+```
+
+Explore the lost census information
+*confusing*
+Numbers don't add up correctly
+
+```{r}
+Lost_census_info.y$nPeople %>% sum()
+Lost_census_info.x$nPeople %>% sum()
+```
+

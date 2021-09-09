@@ -114,11 +114,13 @@ baseline_scenario(dat, baseline, "output/baseline.csv")
 # non baseline
 allChoices(all = 1)
 
-# Future Implmentation (exp and alt) --------------------------------------
+# Parallel Implmentation (exp and alt) --------------------------------------
 
-# the better way to organize this would be to create a list of variables and then apply each option to the emission
-# function. This type of organization is more conducive to parallel processing
-scens <- expand.grid(buf_list, constrain_factor, constrain_list, stringsAsFactors = F)
+# Create data frame of model variables
+scens <- expand.grid(buf_list, 
+constrain_factor,
+ constrain_list,
+  stringsAsFactors = F)
 
 # set names
 names(scens) <- c("buf_dist", "con_fac", "con_val")

@@ -1,11 +1,9 @@
-###################################################################################################
-# Author: Max Blasdel
-# email: max.blasdel@humboldt.edu
-###################################################################################################
-#
+# Max Blasdel
+# max.blasdel@humboldt.edu
+
 # Developed in collaboration with Nick Lam and in support of High Resolution India Modeling Project
 #
-######################## Scenario Modeling of India Emissions ####################################
+# Scenario Modeling of India Emissions
 #
 # Inputs: Polygon file of India with census information merged and spatial buffers around urban areas
 #

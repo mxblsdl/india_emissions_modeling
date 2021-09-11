@@ -17,7 +17,7 @@ ef_names <- gsub(".*_", "", colnames(fuel_atts[8:10]))
 # Main Data File
 # Replace name of downloaded file as needed
 tryCatch({
-    dat <- readRDS("input/spatial_input.rds")
+    dat <- as.data.frame(readRDS("input/spatial_input.rds"))
 }, warning = function(cond) {
     warning("\n\nDownload spatial input file from linked Google Drive")
     message(cond)

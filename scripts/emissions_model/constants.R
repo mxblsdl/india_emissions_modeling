@@ -48,7 +48,7 @@ buf_list <- c(
     , "buf_1km" 
     #, "buf_2km"
     , "buf_3km" # adding a few more buffer distances to aid in the gradient effect
-    , #"buf_4km"
+    #, "buf_4km"
     , "buf_5km"
     , "buf_10km"
     , "buf_15km"

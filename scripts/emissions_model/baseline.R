@@ -2,7 +2,7 @@
 # Run baselines for each region and then call the appropriate baseline file
 ## Run once, maybe move to other script
 
-baseline_scenario <- function(dat, baseline, output) {
+baseline_scenario <- function(dat, baseline, region_list, output) {
   if (baseline == 1) {
     baselineScenario(T)
 
@@ -12,7 +12,7 @@ baseline_scenario <- function(dat, baseline, output) {
                     buf_dist = "buf_0km",
                     region = x,
                     constrain_factor = 'wquint_pca',
-                    constrain_value = constrain_value)
+                    constrain_value = 2)
     })
     # merge together
     base <- bind_rows(base)

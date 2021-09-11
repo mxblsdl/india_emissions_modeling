@@ -1,5 +1,8 @@
 
 # Scenario variations ----------------------------------
+# for outputting an sf object
+# mapping_option <- 1
+mapping_option <- 0
 
 # annual or monthly totals
 # annual_totals <- 0 # monthly WARNING: HAS NOT BEEN EXTENSIVELY TESTED

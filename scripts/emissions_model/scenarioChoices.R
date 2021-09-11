@@ -56,7 +56,6 @@ scenarioChoices <- function(vals, buf_dist, region) {
 
 ## choice functions which work to override previous choices, hold over from the loop format of this function
 ## may still be valuable in the new workflow
-
 allChoices <- function(all) {
   if (exists("all", inherits = F)) { # wrapper to make sure variable all exists, could add to other if statements
     if (all == 1) {

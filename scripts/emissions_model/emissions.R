@@ -2,6 +2,7 @@
 # Apply the emissions factors to every fuel for the ck, wh, sp, and lt
 
   emissions <- function(df, fuel, cols, service) {
+  require(dplyr)
   # find all columns associated wtih specific fuel
   # this part of function will be looped when function is called
   cols <- str_subset(cols, pattern = fuel) %>% as.list() 

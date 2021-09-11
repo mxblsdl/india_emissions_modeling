@@ -4,9 +4,11 @@
 
 # Emissions Data
 
-# TODO explain fuel attributes
+# Fuel attributes define the emissions and heating value for 
+# various fuels. These are a direct control on the model.
+# Fuel attributes come directly from Tami and only have minor formatting changes
 fuel_atts <- read.csv("input/fuelAtts_v5.csv")
-ef_names <- gsub(".*_", "", colnames(fuel_atts[8:10]))
+ef_names <- c("pm25", "bc", "co2")
 
 # Download the main spatial input file from the below link and move to input/
 # Currently hosted on a google drive account

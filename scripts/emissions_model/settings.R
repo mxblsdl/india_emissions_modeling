@@ -1,5 +1,23 @@
 
+# Comment and uncomment as needed to specify different model outputs
+
+# Constrain Factors --------------------------------------------
+# Select one of the constrain factors and accompanying values
+
+## lpg cook values
+# constrain_factor <- "maincook_lpg"
+# constrain_list <- seq(0, 1, 0.05)
+
+## wealth indices
+# constrain_factor <- "wquint_pca"
+# constrain_list <- seq(0, 5.5, .5)
+
+## people per household
+constrain_factor <- "per_house_weighted"
+constrain_list <- seq(0, 9, .25)
+
 # Scenario variations ----------------------------------
+
 # for outputting an sf object
 # mapping_option <- 1
 mapping_option <- 0

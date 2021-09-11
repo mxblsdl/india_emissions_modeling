@@ -16,7 +16,7 @@
 # Developed in collaboration with Nick Lam
 # in support of High Resolution India Modeling Project
 
-source("scripts/emiision_model/load_all.R")
+source("scripts/emissions_model/load_all.R")
 
 # Data fixes ------------------------------------------------------------------
 

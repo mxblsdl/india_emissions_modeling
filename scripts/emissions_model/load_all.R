@@ -62,7 +62,8 @@ source("scripts/emissions_model/EnergyByFuel/energyByFuel_wh_v1.R")
 # assuems no fuel switching
 source("scripts/emissions_model/baseline.R")
 
-# Scenarios ------------------------------------------------------------------
+# Settings ------------------------------------------------------------------
 
 # Set scenario variables that dictate model behavior
-source("scripts/emissions_model/scenario_variations.R")
+source("scripts/emissions_model/settings.R")
+
